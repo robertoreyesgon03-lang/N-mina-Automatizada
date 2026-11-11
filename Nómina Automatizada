@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nómina Automatizada</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<style>
+:root{--navy:#0B2D5B;--cyan:#00B4D8;--bg:#EAF8FC;--txt:#0B2D5B;color-scheme:light}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--txt)}
+header{background:var(--navy);color:#fff;padding:16px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+header h1{margin:0;font-size:20px}
+main{padding:20px;max-width:1400px;margin:auto}
+section{background:#fff;border:2px solid var(--navy);margin-bottom:20px}
+section>h2{margin:0;background:var(--cyan);color:var(--navy);font-size:15px;padding:8px 14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;padding:14px}
+label{display:flex;flex-direction:column;font-size:12px;font-weight:bold;background:var(--navy);color:#fff;padding:6px;gap:4px}
+input,select{font:inherit;padding:6px;border:1px solid var(--navy);background:var(--cyan);color:#000;width:100%}
+input::placeholder{color:#0b2d5b99}
+button{font:inherit;font-weight:bold;border:2px solid var(--navy);padding:9px 16px;cursor:pointer;background:var(--cyan);color:var(--navy)}
+button.p{background:var(--navy);color:#fff;border-color:#fff}
+button:hover{filter:brightness(1.1)}
+.bar{padding:0 14px 14px;display:flex;gap:10px;flex-wrap:wrap}
+.wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th{background:var(--navy);color:#fff;padding:7px 8px;white-space:nowrap;border:1px solid #fff}
+td{background:#CFF1F9;padding:5px 8px;border:1px solid var(--navy);white-space:nowrap;text-align:right}
+td.l{text-align:left}
+tr.t td{background:var(--navy);color:#fff;font-weight:bold}
+.x{background:none;border:0;color:var(--navy);padding:0 4px}
+.info{padding:0 14px 12px;font-size:12px}
+.ptitle{display:none}
+.cd{width:100%;max-width:820px;margin:14px auto;font-size:13px}
+.cd td{background:#fff;border:0;border-bottom:1px solid #CFF1F9;color:#000;padding:3px 8px}
+.cd td:nth-child(-n+2){text-align:left}
+.cd tr.s td{background:#CFF1F9;font-weight:bold;color:var(--navy)}
+.cd tr.l td:nth-child(2){padding-left:26px}
+.cd tr.t td{background:var(--navy);color:#fff;font-weight:bold}
+.ok{font-weight:bold;padding:6px 14px}
+.sig{display:flex;justify-content:space-around;margin:60px 0 20px}
+.sig div{border-top:2px solid var(--navy);width:25%;text-align:center;padding-top:4px;font-weight:bold;font-size:12px}
+header .b{display:flex;gap:8px;flex-wrap:wrap}
+@media print{*{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+ header,.np{display:none!important}
+ body{background:#fff}main{padding:0;max-width:none}
+ section{border:0;margin:0}section>h2{display:none}
+ .ptitle{display:block;text-align:center;color:var(--navy);margin:0 0 8px}
+ body[data-print="nom"] main>section:not(#secNom),body[data-print="cd"] main>section:not(#secCD),body[data-print="all"] main>section:not(#secNom):not(#secCD){display:none!important}
+ body[data-print="all"] #secCD{break-before:page}
+ #secNom table{font-size:8px}#secNom td,#secNom th{padding:3px 4px}
+}
+</style><style id="pg"></style></head><body>
+<header><h1>Nómina Automatizada — <span id="hEmp"></span></h1>
+<div class="b"><button onclick="imprimir('nom')">🖨 Imprimir nómina</button><button onclick="imprimir('cd')">🖨 Imprimir CD</button><button onclick="imprimir('all')">🖨 Imprimir ambos</button><button class="p" id="btnX">⬇ Exportar a Excel</button></div></header>
+<main>
+<section><h2>Parámetros de la Nómina</h2><div class="grid" id="params"></div>
+<div class="info">Tabla del IR (art. 23, Ley 822): 0–100,000 → 0% · 100,000.01–200,000 → 15% · 200,000.01–350,000 → 20% + 15,000 · 350,000.01–500,000 → 25% + 45,000 · más de 500,000 → 30% + 82,500.</div></section>
+
+<section><h2>Registrar empleado</h2>
+<div class="grid" id="form"></div>
+<div class="bar"><button class="p" id="btnAdd">Agregar empleado</button><button id="btnEx">Cargar ejemplo</button><button id="btnClr">Vaciar todo</button></div></section>
+
+<section id="secNom"><h2>Cálculo de la nómina</h2><h3 class="ptitle" id="pNom"></h3><div class="wrap"><table id="tbl"></table></div></section>
+<section id="secCD"><h2>Comprobante de Diario</h2><div id="cd"></div></section>
+</main>
+<script>
+const NAVY='FF0B2D5B',CYAN='FF00B4D8',WHITE='FFFFFFFF';
+const P={empresa:'RARG, S.A.',fecha:'2027-01-31',comp:1,inssL:.07,inssP1:.215,inssP2:.225,inatec:.02,sind:.01,vac:1/12,agui:1/12,indem:1/12,dias:30,horas:8,factor:2,cVen:'XXX',cAdm:'XXX',cMod:'XXX',cCif:'XXX',cRet:'XXX',cTar:'XXX',cNom:'XXX',cAcu:'XXX'};
+const IR=[[0,100000,0,0,0],[100000.01,200000,.15,0,100000],[200000.01,350000,.2,15000,200000],[350000.01,500000,.25,45000,350000],[500000.01,'En adelante',.3,82500,500000]];
+const PF=[['empresa','Empresa','text'],['fecha','Fecha cierre de la nómina','date'],['comp','No. de comprobante','number'],['inssL','INSS laboral (%)','pct'],['inssP1','INSS patronal ≤50 (%)','pct'],['inssP2','INSS patronal >50 (%)','pct'],['inatec','INATEC (%)','pct'],['sind','Sindicato (%)','pct'],['dias','Días del mes','number'],['horas','Horas por jornada','number'],['factor','Factor horas extras','number'],['cVen','Código: Gastos de venta','text'],['cAdm','Código: Gastos de admón.','text'],['cMod','Código: PPMOD','text'],['cCif','Código: PPCIF','text'],['cRet','Código: Retenciones x pagar','text'],['cTar','Código: Desc. horas tardes','text'],['cNom','Código: Nómina x pagar','text'],['cAcu','Código: Gtos. acum. x pagar','text']];
+const FF=[['ced','N° Cédula','text'],['nom','Nombre y apellidos','text'],['cargo','Cargo','text'],['dep','Departamento','sel3'],['tipo','Tipo MO (solo producción)','sel'],['sal','Salario básico (C$)','number'],['uni','Unidades producidas','number'],['val','Valor por unidad (C$)','number'],['com','Comisiones (C$)','number'],['inc','Incentivo (% salario)','number'],['emb','Embargo alimenticio (%)','number'],['sin','Sindicato','sel2'],['he','Horas extras','number'],['ht','Horas tardes','number']];
+let E=[];try{E=JSON.parse(localStorage.getItem('nom_E')||'[]')}catch(e){}
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const f2=n=>Number(n).toLocaleString('es-NI',{minimumFractionDigits:2,maximumFractionDigits:2});
+const save=()=>{try{localStorage.setItem('nom_E',JSON.stringify(E))}catch(e){}};
+
+// ---------- Cálculo (misma lógica que las fórmulas del Excel) ----------
+function irMes(z){if(z<=IR[0][1])return 0;for(let i=1;i<5;i++)if(i==4||z<=IR[i][1])return((z-IR[i][4])*IR[i][2]+IR[i][3])/12}
+function calc(e,n){const hr=P.dias*P.horas,pat=n>50?P.inssP2:P.inssP1;
+ const g=e.uni*e.val>0?e.uni*e.val:e.sal;
+ const h=e.he>0?g/hr*P.factor*e.he:0, j=g*e.inc/100, k=g+h+e.com+j;
+ const l=k*P.inssL, m=irMes((k-l)*12), t=e.ht>0?k/hr*e.ht:0, o=(k-l-m-t)*e.emb/100;
+ const s=/^s[ií]$/i.test(e.sin)?k*P.sind:0, q=l+m+t+o+s;
+ return{g,h,com:e.com,j,k,l,m,t,o,s,q,r:k-q,pat:k*pat,vac:k*P.vac,agui:k*P.agui,ind:k*P.indem,ina:k*P.inatec}}
+
+// ---------- Interfaz ----------
+function buildForms(){
+ $('params').innerHTML=PF.map(([k,t,ty])=>`<label>${t}<input data-p="${k}" type="${ty=='pct'?'number':ty}" step="any" value="${ty=='pct'?+(P[k]*100).toFixed(4):P[k]}"></label>`).join('');
+ document.querySelectorAll('[data-p]').forEach(i=>i.oninput=()=>{const k=i.dataset.p,ty=PF.find(x=>x[0]==k)[2];
+  P[k]=ty=='pct'?(+i.value||0)/100:(ty=='number'?+i.value||0:i.value);render()});
+ $('form').innerHTML=FF.map(([k,t,ty])=>{let c;
+  if(ty=='sel')c='<select id="f_'+k+'"><option></option><option>Directa</option><option>Indirecta</option></select>';
+  else if(ty=='sel3')c='<select id="f_'+k+'"><option>Administración</option><option>Ventas</option><option>Producción</option></select>';
+  else if(ty=='sel2')c='<select id="f_'+k+'"><option>No</option><option>Sí</option></select>';
+  else c=`<input id="f_${k}" type="${ty}" step="any" ${ty=='number'?'placeholder="0"':''}>`;
+  return`<label>${t}${c}</label>`}).join('')}
+const fd=d=>d.split('-').reverse().join('/');
+function render(){
+ $('hEmp').textContent=P.empresa;$('pNom').textContent=P.empresa+' — Nómina de salarios al '+fd(P.fecha);renderCD();
+ const H=['Nombre','Cargo','Depto.','Unidades','Valor/unid.','Salario mensual','Horas extras','Comisiones','Incentivos','Total ingresos','INSS laboral','IR mensual','Horas tardes','Embargo','Sindicato','Total deducc.','Neto a pagar','INSS patronal','Vacaciones','Aguinaldo','Indemniz.','INATEC'];
+ const keys=['g','h','com','j','k','l','m','t','o','s','q','r','pat','vac','agui','ind','ina'],tot={};keys.forEach(k=>tot[k]=0);
+ let body=E.map((e,i)=>{const c=calc(e,E.length);keys.forEach(k=>tot[k]+=c[k]);
+  return`<tr><td class="l">${esc(e.nom)}</td><td class="l">${esc(e.cargo)}</td><td class="l">${esc(e.dep)}</td><td>${e.uni}</td><td>${f2(e.val)}</td>${keys.map(k=>`<td>${f2(c[k])}</td>`).join('')}<td class="np"><button class="x" onclick="del(${i})" title="Eliminar">✕</button></td></tr>`}).join('');
+ if(!E.length)body=`<tr><td class="l" colspan="23">Aún no hay empleados. Agrega uno arriba.</td></tr>`;
+ else body+=`<tr class="t"><td class="l" colspan="5">TOTALES (${E.length} empleados · INSS patronal ${(E.length>50?P.inssP2:P.inssP1)*100}%)</td>${keys.map(k=>`<td>${f2(tot[k])}</td>`).join('')}<td class="np"></td></tr>`;
+ $('tbl').innerHTML='<tr>'+H.map(h=>`<th>${h}</th>`).join('')+'<th class="np"></th></tr>'+body}
+window.del=i=>{E.splice(i,1);save();render()};
+$('btnAdd').onclick=()=>{const e={};
+ FF.forEach(([k,,ty])=>{const v=$('f_'+k).value;e[k]=ty=='number'?(+v||0):v});
+ if(!e.nom.trim()){alert('Escribe el nombre del empleado.');return}
+ E.push(e);save();render();FF.forEach(([k,,ty])=>{const el=$('f_'+k);if(el.tagName=='SELECT')el.selectedIndex=0;else el.value=''})};
+$('btnClr').onclick=()=>{if(confirm('¿Vaciar todos los empleados?')){E=[];save();render()}};
+$('btnEx').onclick=()=>{E.push({ced:'001-010190-0001A',nom:'Juan Pérez',cargo:'Operario',dep:'Producción',tipo:'Directa',sal:8000,uni:0,val:0,com:500,inc:5,emb:10,sin:'Sí',he:10,ht:4},
+ {ced:'001-150385-0002B',nom:'María López',cargo:'Contadora',dep:'Administración',tipo:'',sal:25000,uni:0,val:0,com:0,inc:0,emb:0,sin:'No',he:0,ht:0});save();render()};
+
+// ---------- Comprobante de Diario ----------
+const GR=e=>{const d=(e.dep||'').toUpperCase();return d.startsWith('VENT')?'VENTA':d.startsWith('PROD')?(/^directa$/i.test(e.tipo)?'MOD':'MOI'):'ADMON'};
+const C2K={G:'g',H:'h',I:'com',J:'j',L:'l',M:'m',N:'t',O:'o',P:'s',R:'r',S:'pat',T:'vac',U:'agui',V:'ind',W:'ina'};
+const r2=n=>Math.round((n+Number.EPSILON)*100)/100;
+function cdModel(last){
+ const cs=E.map(e=>({c:calc(e,E.length),g:GR(e)}));
+ const mk=(l,cols,gs)=>{const v=r2(cols.reduce((a,col)=>a+cs.filter(x=>!gs||gs.includes(x.g)).reduce((t,x)=>t+x.c[C2K[col]],0),0));
+  const f='ROUND('+cols.map(col=>gs?gs.map(g=>`SUMIFS('Cálculo'!${col}$3:${col}$${last},'Cálculo'!$X$3:$X$${last},"${g}")`).join('+'):`SUM('Cálculo'!${col}$3:${col}$${last})`).join('+')+',2)';
+  return{l,v,f}};
+ const ap=gs=>[['Indemnización','V'],['Vacaciones','T'],['Aguinaldo','U'],['Inatec','W'],['INSS patronal','S']].map(([l,c])=>mk(l,[c],gs));
+ const full=g=>[mk('Salario',['G'],[g]),mk('Horas extras',['H'],[g]),mk('Comisiones',['I'],[g]),mk('Incentivos',['J'],[g]),...ap([g])];
+ const mod=[mk('Salario',['G'],['MOD']),mk('Horas extras',['H'],['MOD'])];
+ [['Comisiones','I'],['Incentivos','J']].forEach(([l,c])=>{const x=mk(l,[c],['MOD']);if(x.v)mod.push(x)});
+ const cif=[mk('Salario MOI',['G'],['MOI']),mk('Horas extras MOI',['H'],['MOI']),mk('Comisiones',['I'],['MOI']),mk('Incentivos',['J'],['MOI']),...ap(['MOD','MOI'])];
+ const S=[{cod:P.cVen,name:'GASTOS DE VENTA',d:1,lines:full('VENTA')},
+ {cod:P.cAdm,name:'GASTOS DE ADMÓN.',d:1,lines:full('ADMON')},
+ {cod:P.cMod,name:'PPMOD (producción en proceso - mano de obra directa)',d:1,lines:mod},
+ {cod:P.cCif,name:'PPCIF (producción en proceso - costos indirectos)',d:1,lines:cif},
+ {cod:P.cRet,name:'RETENCIONES X PAGAR',d:0,lines:[mk('Seg. laboral (INSS)',['L']),mk('IR',['M']),mk('Otros (embargo alimenticio y sindicato)',['O','P'])]},
+ {cod:P.cTar,name:'DESCUENTOS POR HORAS TARDES',d:0,lines:[mk('Horas tardes',['N'])]},
+ {cod:P.cNom,name:'NÓMINA X PAGAR',d:0,lines:[mk('Neto a pagar',['R'])]},
+ {cod:P.cAcu,name:'GTOS. ACUM. X PAGAR',d:0,lines:[mk('Vacaciones',['T']),mk('Aguinaldo',['U']),mk('Inatec',['W']),mk('INSS patronal',['S']),mk('Indemnización',['V'])]}];
+ S.forEach(s=>s.t=r2(s.lines.reduce((a,x)=>a+x.v,0)));
+ const D=r2(S.filter(s=>s.d).reduce((a,s)=>a+s.t,0)),H=r2(S.filter(s=>!s.d).reduce((a,s)=>a+s.t,0));
+ return{S,D,H,ok:Math.abs(D-H)<0.005}}
+function renderCD(){
+ if(!E.length){$('cd').innerHTML='<div class="info">Agrega empleados para generar el comprobante.</div>';return}
+ const{S,D,H,ok}=cdModel(2+E.length),m=n=>n?f2(n):'-',L='style="text-align:left;font-weight:bold"';
+ let h=`<table class="cd"><tr><td colspan="5" ${L.replace('bold"','bold;font-size:16px;color:#0B2D5B"')}>${esc(P.empresa)}</td></tr><tr><td colspan="5" ${L}>Comprobante Diario</td></tr><tr><td colspan="5" style="text-align:left">Fecha: ${fd(P.fecha)} &nbsp;&nbsp;&nbsp; No. Comprobante: ${String(P.comp).padStart(5,'0')}</td></tr><tr><th>Código</th><th>Cuenta</th><th>Parcial</th><th>Debe</th><th>Haber</th></tr>`;
+ S.forEach(s=>{h+=`<tr class="s"><td>${esc(s.cod)}</td><td>${s.name}</td><td></td><td>${s.d?m(s.t):''}</td><td>${s.d?'':m(s.t)}</td></tr>`+s.lines.map(x=>`<tr class="l"><td></td><td>${x.l}</td><td>${m(x.v)}</td><td></td><td></td></tr>`).join('')});
+ h+=`<tr class="t"><td></td><td>TOTALES</td><td></td><td>${f2(D)}</td><td>${f2(H)}</td></tr></table><div class="ok" style="color:${ok?'#0B2D5B':'#B00020'}">${ok?'✔ Comprobante cuadrado (Debe = Haber)':'✘ Comprobante descuadrado, diferencia '+f2(D-H)}</div><div class="sig"><div>REALIZADO</div><div>REVISADO</div><div>AUTORIZADO</div></div>`;
+ $('cd').innerHTML=h}
+window.imprimir=m=>{if(!E.length){alert('Agrega al menos un empleado.');return}
+ document.body.dataset.print=m;$('pg').textContent=`@page{size:A4 ${m=='cd'?'portrait':'landscape'};margin:10mm}`;window.print()};
+window.onafterprint=()=>{delete document.body.dataset.print};
+
+// ---------- Exportar a Excel (con fórmulas vivas) ----------
+const thin={style:'thin',color:{argb:NAVY}};const BR={top:thin,left:thin,bottom:thin,right:thin};
+const fill=c=>({type:'pattern',pattern:'solid',fgColor:{argb:c}});
+const CUR='"C$" #,##0.00';
+function hdr(c){c.fill=fill(NAVY);c.font={name:'Arial',bold:true,color:{argb:WHITE},size:10};c.alignment={horizontal:'center',vertical:'middle',wrapText:true};c.border=BR}
+function cel(c,fmt,left){c.fill=fill(CYAN);c.font={name:'Arial',size:10,color:{argb:'FF000000'}};c.border=BR;if(fmt)c.numFmt=fmt;if(left)c.alignment={horizontal:'left'}}
+function sec(ws,r,t){ws.mergeCells(`C${r}:G${r}`);const c=ws.getCell(`C${r}`);c.value=t;c.fill=fill(CYAN);c.font={name:'Arial',bold:true,color:{argb:NAVY}}}
+function irF(r){const z=`((K${r}-L${r})*12)`,R=n=>`((${z}-Parametros!$G$${n})*Parametros!$E$${n}+Parametros!$F$${n})/12`;
+ return`IF(${z}<=Parametros!$D$31,0,IF(${z}<=Parametros!$D$32,${R(32)},IF(${z}<=Parametros!$D$33,${R(33)},IF(${z}<=Parametros!$D$34,${R(34)},${R(35)}))))`}
+
+async function exportar(){
+ if(!E.length){alert('Agrega al menos un empleado.');return}
+ const wb=new ExcelJS.Workbook();wb.creator=P.empresa;
+ // Parametros
+ const wp=wb.addWorksheet('Parametros',{views:[{showGridLines:false}]});
+ wp.getColumn(1).width=1;wp.getColumn(2).width=1;wp.getColumn(3).width=30;[4,5,6,7].forEach(i=>wp.getColumn(i).width=18);
+ wp.mergeCells('C1:G1');const t=wp.getCell('C1');t.value='Parámetros de la Nómina';hdr(t);t.font.size=13;
+ sec(wp,3,'Datos Generales');sec(wp,9,'Tasas y Factores');sec(wp,21,'Horas Extras y Horas tardes');sec(wp,27,'Tabla de IR');
+ const rows=[[5,'Empresa',P.empresa,null],[6,'Fecha Cierre de la Nómina',new Date(P.fecha+'T00:00:00'),'dd/mm/yyyy'],[7,'No. De comprobante',P.comp,'0000'],
+  [11,'INSS laboral',P.inssL,'0%'],[12,'INSS Patronal <50',P.inssP1,'0.00%'],[13,'INSS Patronal >50',P.inssP2,'0.00%'],
+  [14,'INSS Patronal Aplicable',{formula:"IF(COUNTA('Base de Datos'!C3:C1000)>50,D13,D12)",result:E.length>50?P.inssP2:P.inssP1},'0.00%'],
+  [15,'INATEC',P.inatec,'0%'],[16,'Sindicato',P.sind,'0.00%'],[17,'Vacaciones',{formula:'1/12',result:1/12},'0.00000000'],[18,'Aguinaldo',{formula:'1/12',result:1/12},'0.00000000'],[19,'Indemnización',{formula:'1/12',result:1/12},'0.00000000'],
+  [23,'Dias del mes',P.dias,'0'],[24,'Horas por Jornada',P.horas,'0'],[25,'Factor Horas Extras',P.factor,'0.00']];
+ rows.forEach(([r,l,v,f])=>{const a=wp.getCell('C'+r);a.value=l;hdr(a);a.alignment={horizontal:'left'};const b=wp.getCell('D'+r);b.value=v;cel(b,f,true)});
+ wp.mergeCells('C29:G29');const ti=wp.getCell('C29');ti.value='Tabla del IR de rentas del trabajo (art. 23, Ley 822)';hdr(ti);
+ ['Desde (C$ anual)','Hasta (C$ anual)','% aplicable','Impuesto base','Sobre exceso de'].forEach((h,i)=>hdr(wp.getCell(30,3+i)));
+ ['Desde (C$ anual)','Hasta (C$ anual)','% aplicable','Impuesto base','Sobre exceso de'].forEach((h,i)=>wp.getCell(30,3+i).value=h);
+ IR.forEach((row,i)=>row.forEach((v,j)=>{const c=wp.getCell(31+i,3+j);c.value=v;cel(c,j==2?'0%':'#,##0.00')}));
+ // Base de Datos
+ const wd=wb.addWorksheet('Base de Datos',{views:[{showGridLines:false,state:'frozen',ySplit:2}]});
+ const DH=['N° DE CEDULA','Nombre y apellidos','Cargo','Departamento','Tipo MO (solo producción)','Salario básico','Unidades producidas','Valor por unidad','Comisiones','Incentivo (% salario)','Embargo alimenticio (% ingresos)','Sindicato (Sí/No)','Horas extras','Horas tardes'];
+ const DW=[18,30,16,18,24,16,18,16,14,18,24,16,13,13];wd.getColumn(1).width=2;
+ DH.forEach((h,i)=>{const c=wd.getCell(2,2+i);c.value=h;hdr(c);wd.getColumn(2+i).width=DW[i]});
+ E.forEach((e,i)=>{const r=3+i,v=[e.ced,e.nom,e.cargo,e.dep,e.tipo,e.sal,e.uni,e.val,e.com,e.inc/100,e.emb/100,e.sin,e.he,e.ht],
+  fm=[0,0,0,0,0,CUR,'0',CUR,CUR,'0%','0%',0,'0.##','0.##'];
+  v.forEach((x,j)=>{const c=wd.getCell(r,2+j);c.value=x;cel(c,fm[j]||null,j<5)})});
+ // Cálculo
+ const wc=wb.addWorksheet('Cálculo',{views:[{showGridLines:false,state:'frozen',ySplit:2,xSplit:2}]});
+ const CH=['Nombre','Cargo','Departamento','Unidades','Valor/unidad','Salario mensual','Horas extras (C$)','Comisiones','Incentivos','Total ingresos','INSS laboral','IR Mensual','Horas tardes (C$)','Embargo alimenticio','Sindicato','Total deducciones','Neto a pagar','INSS patronal','Vacaciones','Aguinaldo','Indemnización','INATEC','Grupo CD'];
+ wc.getColumn(1).width=2;CH.forEach((h,i)=>{const c=wc.getCell(2,2+i);c.value=h;hdr(c);wc.getColumn(2+i).width=i<3?22:16});
+ const B="'Base de Datos'!",PR='Parametros!$D$',L='GHIJKLMNOPQRSTUVW'.split('');
+ E.forEach((e,i)=>{const r=3+i,c=calc(e,E.length);
+  const F=[[`${B}C${r}`,e.nom],[`${B}D${r}`,e.cargo],[`${B}E${r}`,e.dep],[`${B}H${r}`,e.uni],[`${B}I${r}`,e.val],
+  [`IF(E${r}*F${r}>0,E${r}*F${r},${B}G${r})`,c.g],
+  [`IF(${B}N${r}>0,G${r}/(${PR}23*${PR}24)*${PR}25*${B}N${r},0)`,c.h],
+  [`${B}J${r}`,c.com],[`G${r}*${B}K${r}`,c.j],[`G${r}+H${r}+I${r}+J${r}`,c.k],[`K${r}*${PR}11`,c.l],[irF(r),c.m],
+  [`IF(${B}O${r}>0,K${r}/(${PR}23*${PR}24)*${B}O${r},0)`,c.t],[`(K${r}-L${r}-M${r}-N${r})*${B}L${r}`,c.o],
+  [`IF(OR(${B}M${r}="Sí",${B}M${r}="Si"),K${r}*${PR}16,0)`,c.s],[`L${r}+M${r}+N${r}+O${r}+P${r}`,c.q],[`K${r}-Q${r}`,c.r],
+  [`K${r}*${PR}14`,c.pat],[`K${r}*${PR}17`,c.vac],[`K${r}*${PR}18`,c.agui],[`K${r}*${PR}19`,c.ind],[`K${r}*${PR}15`,c.ina],[`IF(LEFT(${B}E${r},4)="Vent","VENTA",IF(LEFT(${B}E${r},4)="Prod",IF(${B}F${r}="Directa","MOD","MOI"),"ADMON"))`,GR(e)]];
+  F.forEach(([f,res],j)=>{const x=wc.getCell(r,2+j);x.value={formula:f,result:res};cel(x,j==3?'0':(j>2&&j<22?CUR:null),j<3)})});
+ const tr=3+E.length;const a=wc.getCell(tr,2);a.value='TOTALES';hdr(a);a.alignment={horizontal:'left'};
+ for(let j=2;j<23;j++){const x=wc.getCell(tr,2+j);if(j<5||j>21){hdr(x);continue}const col=L[j-5];
+  x.value={formula:`SUM(${col}3:${col}${tr-1})`};hdr(x);x.numFmt=CUR;x.alignment={horizontal:'right'}}
+ wc.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,paperSize:9};
+ const ft=(c,sz)=>c.font={name:'Arial',bold:true,size:sz,color:{argb:NAVY}};
+ // Nómina imprimible
+ const wn=wb.addWorksheet('Nómina',{views:[{showGridLines:false}],pageSetup:{orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,paperSize:9}});
+ const SRC=['B','C','D','G','H','I','J','K','L','M','N','O','P','Q','R'],NC=2+SRC.length;
+ wn.getColumn(1).width=2;
+ const n1=wn.getCell('B1');n1.value={formula:'Parametros!D5',result:P.empresa};ft(n1,14);
+ const n2=wn.getCell('B2');n2.value='NÓMINA DE SALARIOS';ft(n2,11);
+ const n3=wn.getCell('B3');n3.value='Fecha de cierre:';ft(n3,10);
+ const n4=wn.getCell('C3');n4.value={formula:'Parametros!D6',result:new Date(P.fecha+'T00:00:00')};n4.numFmt='dd/mm/yyyy';n4.alignment={horizontal:'left'};ft(n4,10);
+ SRC.forEach((s,i)=>{const c=wn.getCell(5,2+i);c.value=wc.getCell(s+'2').value;hdr(c);wn.getColumn(2+i).width=i<3?22:15});
+ const fc=wn.getCell(5,NC);fc.value='Firma';hdr(fc);wn.getColumn(NC).width=24;
+ E.forEach((_,k)=>{SRC.forEach((s,i)=>{const c=wn.getCell(6+k,2+i);c.value={formula:`'Cálculo'!${s}${3+k}`,result:wc.getCell(s+(3+k)).value.result};cel(c,i>2?CUR:null,i<3)});cel(wn.getCell(6+k,NC))});
+ const nt=6+E.length;
+ for(let i=0;i<=SRC.length;i++){const c=wn.getCell(nt,2+i);hdr(c);if(i==0){c.value='TOTALES';c.alignment={horizontal:'left'}}
+  else if(i>2&&i<SRC.length){const Lc=String.fromCharCode(66+i);c.value={formula:`SUM(${Lc}6:${Lc}${nt-1})`};c.numFmt=CUR;c.alignment={horizontal:'right'}}}
+ // Comprobante de Diario
+ const wd2=wb.addWorksheet('Comprobante de Diario',{views:[{showGridLines:false}],pageSetup:{orientation:'portrait',fitToPage:true,fitToWidth:1,fitToHeight:0,paperSize:9}});
+ [2,10,56,16,16,16].forEach((w,i)=>wd2.getColumn(i+1).width=w);
+ const q1=wd2.getCell('B1');q1.value={formula:'Parametros!D5',result:P.empresa};ft(q1,14);
+ const q2=wd2.getCell('B2');q2.value='Comprobante Diario';ft(q2,11);
+ const q3=wd2.getCell('B3');q3.value='Fecha:';ft(q3,10);
+ const q4=wd2.getCell('C3');q4.value={formula:'Parametros!D6',result:new Date(P.fecha+'T00:00:00')};q4.numFmt='dd/mm/yyyy';q4.alignment={horizontal:'left'};ft(q4,10);
+ const q5=wd2.getCell('D3');q5.value='No. Comprobante:';ft(q5,10);
+ const q6=wd2.getCell('E3');q6.value={formula:'Parametros!D7',result:P.comp};q6.numFmt='00000';q6.alignment={horizontal:'left'};ft(q6,10);
+ ['Código','Cuenta','Parcial','Debe','Haber'].forEach((h,i)=>{const c=wd2.getCell(5,2+i);c.value=h;hdr(c)});
+ const M=cdModel(2+E.length),ZF='#,##0.00;-#,##0.00;"-"',TINT='FFCFF1F9',dd=[],hh=[];let r=6;
+ const paint=(rw,argb,bold)=>{for(let j=2;j<=6;j++){const c=wd2.getCell(rw,j);c.fill=fill(argb);c.font={name:'Arial',size:10,bold,color:{argb:bold?NAVY:'FF000000'}};c.border=BR;if(j>=4)c.numFmt=ZF}};
+ M.S.forEach(s=>{const sr=r++;paint(sr,CYAN,true);wd2.getCell(sr,2).value=s.cod;wd2.getCell(sr,3).value=s.name;
+  const first=r;s.lines.forEach(x=>{paint(r,TINT,false);wd2.getCell(r,3).value='      '+x.l;wd2.getCell(r,4).value={formula:x.f,result:x.v};r++});
+  const tc=wd2.getCell(sr,s.d?5:6);tc.value={formula:`SUM(D${first}:D${r-1})`,result:s.t};(s.d?dd:hh).push((s.d?'E':'F')+sr)});
+ for(let j=2;j<=6;j++)hdr(wd2.getCell(r,j));
+ wd2.getCell(r,3).value='TOTALES';wd2.getCell(r,3).alignment={horizontal:'left'};
+ const te=wd2.getCell(r,5),tf=wd2.getCell(r,6);te.value={formula:dd.join('+'),result:M.D};tf.value={formula:hh.join('+'),result:M.H};te.numFmt=tf.numFmt=ZF;
+ const ck=wd2.getCell(r+1,3);ck.value={formula:`IF(ROUND(E${r}-F${r},2)=0,"✔ Comprobante cuadrado (Debe = Haber)","✘ Comprobante descuadrado")`,result:M.ok?'✔ Comprobante cuadrado (Debe = Haber)':'✘ Comprobante descuadrado'};ft(ck,10);
+ const sg=r+5;wd2.mergeCells(`D${sg}:E${sg}`);
+ [['C','REALIZADO'],['D','REVISADO'],['F','AUTORIZADO']].forEach(([cl,t])=>{const c=wd2.getCell(cl+sg);c.value=t;ft(c,10);c.alignment={horizontal:'center'};c.border={top:{style:'medium',color:{argb:NAVY}}}});
+ wd2.getCell('E'+sg).border={top:{style:'medium',color:{argb:NAVY}}};
+ const buf=await wb.xlsx.writeBuffer();
+ const u=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+ const l=document.createElement('a');l.href=u;l.download='Nomina_'+P.fecha+'.xlsx';document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),2000)}
+$('btnX').onclick=()=>exportar().catch(e=>alert('Error al exportar: '+e.message));
+buildForms();render();
+</script></body></html>
